@@ -1,0 +1,24 @@
+{
+  "event_rows": 8738120,
+  "sessions": 1814075,
+  "users": 712970,
+  "view_sessions": 1707990,
+  "view_cart_sessions": 358190,
+  "view_cart_purchase_sessions": 45360,
+  "cart_sessions": 440270,
+  "cart_purchase_sessions": 53519,
+  "view_to_cart_rate": 0.2097143425898278,
+  "view_cart_to_purchase_rate": 0.12663670119210474,
+  "cart_to_purchase_rate": 0.12155949758102982,
+  "cart_to_purchase_drop": 0.8784405024189702,
+  "view_to_purchase_rate": 0.02655753253824671,
+  "ordered_three_stage_sessions": 29973,
+  "sample_per_arm": 2736,
+  "total_sample": 10944,
+  "assumptions": {
+    "aov_inr": 1200.0,
+    "contribution_margin_pct": 0.25,
+    "free_delivery_subsidy_inr": 60,
+    "mde_pp": 3.0
+  }
+}

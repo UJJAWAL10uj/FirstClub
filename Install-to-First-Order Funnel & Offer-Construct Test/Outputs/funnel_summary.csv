@@ -1,0 +1,4 @@
+stage,sessions,base_sessions,conversion_from_previous,drop_from_previous,definition
+Product-view sessions,1707990,1707990,1.0,0.0,At least one view event in the session
+View + cart sessions,358190,1707990,0.2097143425898278,0.7902856574101722,At least one view and at least one cart event in same session; presence-based
+View + cart + purchase sessions,45360,358190,0.12663670119210474,0.8733632988078952,"At least one view, cart and purchase event in same session; presence-based"

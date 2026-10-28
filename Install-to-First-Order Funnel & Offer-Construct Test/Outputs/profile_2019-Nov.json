@@ -1,0 +1,36 @@
+{
+  "file": "2019-Nov.csv.gz",
+  "rows": 4635837,
+  "date_min_utc": "2019-11-01 00:00:02 UTC",
+  "date_max_utc": "2019-11-30 23:59:58 UTC",
+  "event_types": {
+    "view": 2076132,
+    "cart": 1311807,
+    "remove_from_cart": 925481,
+    "purchase": 322417
+  },
+  "missing_values_by_column": {
+    "event_time": 0,
+    "event_type": 0,
+    "product_id": 0,
+    "category_id": 0,
+    "category_code": 4560089,
+    "brand": 1986029,
+    "price": 0,
+    "user_id": 0,
+    "user_session": 813
+  },
+  "rows_missing_session_id": 813,
+  "unique_product_ids_in_file": 43419,
+  "price_nonmissing_rows": 4635837,
+  "price_missing_rows": 0,
+  "price_nonpositive_rows": 11642,
+  "price_min": -79.37,
+  "price_max": 327.78,
+  "mean_event_price_source_currency": 8.12070137711917,
+  "notes": [
+    "Raw event rows are retained; no event-level deduplication is performed.",
+    "Price currency is left in source units; do not convert to INR without validating source currency."
+  ],
+  "runtime_seconds": 22.8
+}

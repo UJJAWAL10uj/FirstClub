@@ -1,0 +1,4 @@
+offer,assumed_aov_inr,assumed_contribution_margin_pct,pre_promo_contribution_inr,modeled_offer_cost_per_redeemed_order_inr,contribution_after_offer_inr,break_even_cac_ceiling_inr_per_order,observed_cart_to_purchase_baseline_proxy,break_even_treatment_conversion_proxy,absolute_lift_needed_vs_observed_baseline_pp,relative_lift_needed_pct,assumption_note
+Free delivery,1200.0,0.25,300.0,60.0,240.0,240.0,0.12155949758102982,0.15194937197628727,3.038987439525745,25.0,Assumed delivery subsidy per redeemed order
+₹100 off,1200.0,0.25,300.0,100.0,200.0,200.0,0.12155949758102982,0.18233924637154472,6.07797487905149,49.99999999999998,Fixed discount cost per redeemed order
+10% off,1200.0,0.25,300.0,120.0,180.0,180.0,0.12155949758102982,0.2025991626350497,8.103966505401988,66.66666666666667,10% of assumed basket AOV

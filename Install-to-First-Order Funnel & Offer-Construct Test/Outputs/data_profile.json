@@ -1,0 +1,68 @@
+{
+  "input_files": {
+    "2019-Oct.csv.gz": 4102283,
+    "2019-Nov.csv.gz": 4635837
+  },
+  "raw_event_rows": 8738120,
+  "time_range_utc": {
+    "min": "2019-10-01 00:00:00",
+    "max": "2019-11-30 23:59:58"
+  },
+  "event_types": {
+    "cart": 2544192,
+    "purchase": 568041,
+    "remove_from_cart": 1687591,
+    "view": 3938296
+  },
+  "unique_product_ids_across_files": 45960,
+  "unique_user_sessions_with_nonnull_session_id": 1814075,
+  "unique_users_across_sessions": 712970,
+  "rows_missing_session_id": 1450,
+  "missing_values_by_column": {
+    "category_code": 8594895,
+    "brand": 3645290,
+    "user_session": 1450
+  },
+  "price_nonmissing_rows": 8738120,
+  "price_missing_rows": 0,
+  "price_nonpositive_rows": 17728,
+  "price_min": -79.37,
+  "price_max": 327.78,
+  "mean_event_price_source_currency": 8.315164615503393,
+  "overall_session_metrics": {
+    "sessions": 1814075.0,
+    "users": 712970.0,
+    "view_sessions": 1707990.0,
+    "cart_sessions": 440270.0,
+    "purchase_sessions": 65703.0,
+    "view_cart_sessions": 358190.0,
+    "cart_purchase_sessions": 53519.0,
+    "view_cart_purchase_sessions": 45360.0,
+    "ordered_view_cart_sessions": 273332.0,
+    "ordered_cart_purchase_sessions": 53079.0,
+    "ordered_three_stage_sessions": 29973.0,
+    "view_events": 3938284.0,
+    "cart_events": 2543022.0,
+    "purchase_events": 568041.0,
+    "remove_events": 1687323.0,
+    "purchase_value_proxy": 2742555.330000001
+  },
+  "rates": {
+    "view_to_cart_presence_rate": 0.2097143425898278,
+    "view_cart_to_purchase_presence_rate": 0.12663670119210474,
+    "cart_to_purchase_presence_rate": 0.12155949758102982,
+    "cart_to_purchase_presence_drop": 0.8784405024189702,
+    "view_to_purchase_presence_rate": 0.02655753253824671,
+    "ordered_view_then_cart_sessions": 273332,
+    "ordered_cart_then_purchase_sessions": 53079,
+    "ordered_three_stage_sessions": 29973
+  },
+  "caveats": [
+    "Data records product events, not app installs or first-order eligibility.",
+    "Session purchase is a proxy; multiple purchase rows may be line items from one order.",
+    "No row-level deduplication is applied. Presence-based session metrics are robust to duplicates, but event counts and price sums can be affected.",
+    "Source price values include non-positive values; source currency is not used for the INR offer economics.",
+    "Brand/category dimensions are highly incomplete; avoid overinterpreting these cuts.",
+    "The AOV is public company context; contribution margin and offer costs are assumptions, not internal finance data."
+  ]
+}
