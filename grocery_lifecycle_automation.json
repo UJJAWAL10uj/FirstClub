@@ -1,0 +1,387 @@
+{
+  "name": "AI-Powered Grocery CRM & Lifecycle Automation",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "beb6b117-0e3a-480a-81ad-327e40dfec81",
+      "name": "Manual Run",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Customers",
+          "mode": "list",
+          "cachedResultName": "Customers"
+        },
+        "options": {
+          "range": "A:Z"
+        }
+      },
+      "id": "c64b6cf2-f903-49b4-882f-2bf08a7bfc52",
+      "name": "Read Customers from Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $input.all().map(item => item.json);\nconst today = new Date().toISOString().slice(0, 10);\nconst cooldownDays = 7;\nconst groceryCategories = new Set(['produce','dairy','pantry','snacks','household','personal_care','beverages','bakery']);\nconst toDate = (v) => {\n  if (!v) return null;\n  const d = new Date(String(v).slice(0, 10) + 'T00:00:00Z');\n  return Number.isNaN(d.getTime()) ? null : d;\n};\nconst age = (v) => {\n  const d = toDate(v), t = toDate(today);\n  return d && t ? Math.floor((t.getTime() - d.getTime()) / 86400000) : null;\n};\nconst bool = (v) => ['true','1','yes','y','opted_in','consented'].includes(String(v ?? '').trim().toLowerCase());\nconst num = (v, fallback = 0) => Number.isFinite(Number(v)) ? Number(v) : fallback;\nconst decisions = [];\nfor (const c of rows) {\n  const id = String(c.customer_id ?? '').trim();\n  const email = String(c.email ?? '').trim();\n  const consent = bool(c.marketing_consent);\n  const orders = Math.max(0, Math.trunc(num(c.order_count)));\n  const spend = num(c.total_spend_inr);\n  const category = String(c.preferred_category || 'pantry').trim().toLowerCase();\n  const recency = age(c.last_order_date);\n  const signupAge = age(c.signup_date);\n  const firstOrderAge = age(c.first_order_date);\n  const lastCampaignAge = age(c.last_campaign_date);\n  let row = {\n    customer_id: id, first_name: String(c.first_name || 'there'), email,\n    segment: 'Suppressed', campaign_type: 'None', recommended_offer: 'No offer',\n    decision_reason: 'Not eligible', eligible: false, suppression_reason: '',\n    days_since_last_order: recency ?? '', order_count: orders,\n    total_spend_inr: spend, preferred_category: category, original_customer: c,\n  };\n  if (!id) row.suppression_reason = 'missing_customer_id';\n  else if (!email || !email.includes('@')) row.suppression_reason = 'missing_or_invalid_email';\n  else if (!consent) row.suppression_reason = 'no_marketing_consent';\n  else if (c.last_campaign_date && lastCampaignAge !== null && lastCampaignAge >= 0 && lastCampaignAge < cooldownDays) row.suppression_reason = 'campaign_cooldown';\n  if (row.suppression_reason) {\n    row.decision_reason = `Suppressed: ${row.suppression_reason}`;\n    decisions.push(row);\n    continue;\n  }\n\n  const replenishDays = Math.max(7, Math.trunc(num(c.typical_replenishment_days, 21)));\n  if (orders === 0) {\n    row.segment = signupAge !== null && signupAge <= 7 ? 'New Signup' : 'Dormant Signup';\n    row.campaign_type = 'First Order Activation';\n    row.recommended_offer = '5% off the first order, capped at ₹100';\n    row.decision_reason = 'Signed up but has not placed a first order.';\n  } else if (orders === 1 && recency !== null && recency <= 14) {\n    row.segment = 'First-Order Customer';\n    row.campaign_type = 'Post-Purchase Reorder';\n    row.recommended_offer = 'No discount by default; recommend relevant add-ons';\n    row.decision_reason = 'First order is recent; support satisfaction and the next order.';\n  } else if (orders === 1) {\n    row.segment = 'One-Time Buyer';\n    row.campaign_type = 'First-to-Second Order';\n    row.recommended_offer = '5% off the next order, capped at ₹100';\n    row.decision_reason = 'Customer has placed one order but has not returned recently.';\n  } else if (recency !== null && recency >= 45) {\n    row.segment = spend >= 8000 ? 'High-Value Win-Back' : 'Dormant Repeat Customer';\n    row.campaign_type = 'Win-Back';\n    row.recommended_offer = '10% off an order above ₹799, capped at ₹150';\n    row.decision_reason = `Repeat customer inactive for ${recency} days.`;\n  } else if (spend >= 6000 && recency !== null && recency >= 21) {\n    row.segment = 'High-Value At-Risk';\n    row.campaign_type = 'VIP Re-engagement';\n    row.recommended_offer = 'Personalized basket first; incentive only if approved';\n    row.decision_reason = `High-spend customer shows an early inactivity signal (${recency} days).`;\n  } else if (groceryCategories.has(category) && recency !== null && recency >= replenishDays - 3 && recency <= replenishDays + 10) {\n    row.segment = 'Replenishment Due';\n    row.campaign_type = 'Replenishment Reminder';\n    row.recommended_offer = 'No discount by default; show relevant replenishment items';\n    row.decision_reason = `Last order was ${recency} days ago, near the ${replenishDays}-day replenishment cadence.`;\n  } else if (recency !== null && recency <= 14) {\n    row.segment = 'Active Repeat Customer';\n    row.campaign_type = 'Cross-Sell & Habit';\n    row.recommended_offer = 'No discount by default; recommend complementary essentials';\n    row.decision_reason = 'Recent repeat customer; encourage useful discovery and habit formation.';\n  } else {\n    row.segment = 'Active Customer Nurture';\n    row.campaign_type = 'Relevant Category Nurture';\n    row.recommended_offer = 'No discount by default; use category-relevant recommendations';\n    row.decision_reason = 'Customer does not match a higher-priority lifecycle trigger.';\n  }\n  row.eligible = true;\n  decisions.push(row);\n}\nconst eligible = decisions.filter(r => r.eligible);\nconst groups = new Map();\nfor (const c of eligible) {\n  if (!groups.has(c.campaign_type)) groups.set(c.campaign_type, []);\n  groups.get(c.campaign_type).push(c);\n}\nreturn Array.from(groups.entries()).map(([campaign_type, customers]) => ({json: {\n  campaign_type,\n  segment_labels: [...new Set(customers.map(c => c.segment))],\n  customer_count: customers.length,\n  offer_examples: [...new Set(customers.map(c => c.recommended_offer))].slice(0, 4),\n  customers,\n  evaluation_date: today,\n}}));"
+      },
+      "id": "9143d373-0bf5-49e3-9411-02e98b9694fe",
+      "name": "Segment & Group Customers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"gpt-4o-mini\", temperature: 0.4, response_format: { type: \"json_object\" }, messages: [ { role: \"system\", content: \"You write concise, helpful grocery lifecycle email copy for an Indian quality-focused grocery brand. Return only JSON with subject_template, body_template, cta, rationale. Preserve {first_name}, {preferred_category}, and {offer} exactly in subject/body combined. Never invent prices, stock, delivery, health, freshness, quality, scarcity, or urgency claims. Do not change or expand the offer.\" }, { role: \"user\", content: JSON.stringify({ campaign_type: $json.campaign_type, segment_labels: $json.segment_labels, customer_count: $json.customer_count, offer_examples: $json.offer_examples, placeholders: [\"{first_name}\", \"{preferred_category}\", \"{offer}\"], rule: \"Use placeholders; write one reusable template, not separate messages per customer.\" }) } ] }) }}",
+        "options": {
+          "timeout": 40000
+        }
+      },
+      "id": "dfb21949-4ac1-404c-a460-6f5e6a9e19bd",
+      "name": "Generate AI Campaign Copy (one call per campaign type)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1010,
+        300
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const groups = $('Segment & Group Customers').all().map(item => item.json);\nconst aiResponses = $input.all().map(item => item.json);\nconst fallback = {\n  'First Order Activation': {subject_template:'Your grocery essentials are waiting, {first_name}', body_template:'Hi {first_name}, discover everyday essentials picked for your {preferred_category} preferences. Use {offer} on your first order, subject to the offer terms.', cta:'Explore your first basket', rationale:'Reduce signup-to-first-order friction.'},\n  'Post-Purchase Reorder': {subject_template:'How did your first basket go, {first_name}?', body_template:'Hi {first_name}, we hope your first order went smoothly. Explore useful add-ons in {preferred_category}. {offer}', cta:'Build your next basket', rationale:'Make the second order easier.'},\n  'First-to-Second Order': {subject_template:'Ready for your next basket, {first_name}?', body_template:'Hi {first_name}, revisit {preferred_category} favourites and use {offer} if it fits your basket.', cta:'Shop your favourites', rationale:'Address the one-time-buyer gap.'},\n  'Win-Back': {subject_template:'A fresh grocery run, on your terms, {first_name}', body_template:'Hi {first_name}, it has been a while since your last basket. See what is new in {preferred_category}. Your eligible return offer: {offer}.', cta:'Come back to your basket', rationale:'Encourage a lapsed repeat customer to return.'},\n  'VIP Re-engagement': {subject_template:'A more relevant basket for you, {first_name}', body_template:'Hi {first_name}, explore a curated basket around your {preferred_category} preferences. {offer}', cta:'See your recommendations', rationale:'Prioritize relevance before discounting.'},\n  'Replenishment Reminder': {subject_template:'Running low on {preferred_category}, {first_name}?', body_template:'Hi {first_name}, it may be time to restock your {preferred_category} essentials. Check your favourites. {offer}', cta:'Restock essentials', rationale:'Prompt likely replenishment using observed cadence.'},\n  'Cross-Sell & Habit': {subject_template:'Ideas for your next grocery basket, {first_name}', body_template:'Hi {first_name}, discover complementary picks alongside your usual {preferred_category} favourites. {offer}', cta:'Explore recommendations', rationale:'Support useful discovery without defaulting to discounts.'},\n  'Relevant Category Nurture': {subject_template:'A few fresh ideas for your basket, {first_name}', body_template:'Hi {first_name}, explore new picks in {preferred_category} and build a basket around what you need. {offer}', cta:'Browse your category', rationale:'Keep category recommendations relevant.'},\n};\nconst today = new Date().toISOString().slice(0,10);\nconst fill = (s, c) => String(s || '').replaceAll('{first_name}', String(c.first_name || 'there')).replaceAll('{preferred_category}', String(c.preferred_category || 'grocery').replaceAll('_',' ')).replaceAll('{offer}', String(c.recommended_offer || ''));\nconst output = [];\nfor (let i = 0; i < groups.length; i++) {\n  const group = groups[i];\n  const response = aiResponses[i] || {};\n  let ai = null;\n  try {\n    const content = response.choices?.[0]?.message?.content;\n    const parsed = typeof content === 'string' ? JSON.parse(content) : null;\n    if (parsed && ['subject_template','body_template','cta','rationale'].every(k => typeof parsed[k] === 'string' && parsed[k].trim())) {\n      const all = parsed.subject_template + parsed.body_template;\n      if (all.includes('{first_name}') && all.includes('{preferred_category}') && all.includes('{offer}')) ai = parsed;\n    }\n  } catch (e) { ai = null; }\n  const template = ai || fallback[group.campaign_type] || fallback['Relevant Category Nurture'];\n  for (const c of group.customers) {\n    output.push({json: {\n      campaign_id: `DRAFT-${c.customer_id}-${today.replaceAll('-','')}`,\n      generated_at: today,\n      customer_id: c.customer_id,\n      first_name: c.first_name,\n      email: c.email,\n      segment: c.segment,\n      campaign_type: c.campaign_type,\n      decision_reason: c.decision_reason,\n      recommended_offer: c.recommended_offer,\n      subject: fill(template.subject_template, c),\n      message_body: fill(template.body_template, c),\n      cta: template.cta,\n      copy_rationale: template.rationale,\n      preferred_category: c.preferred_category,\n      days_since_last_order: c.days_since_last_order,\n      order_count: c.order_count,\n      total_spend_inr: c.total_spend_inr,\n      channel: 'email_draft',\n      status: 'DRAFT_REQUIRES_REVIEW',\n      send_approved: 'NO',\n      draft_source: ai ? 'OpenAI API' : 'Fallback template',\n    }});\n  }\n}\nreturn output;"
+      },
+      "id": "3f77eb9a-2bf5-4587-af2c-e73cf2d6e60c",
+      "name": "Expand Copy into Customer Drafts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1290,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Campaign_Queue",
+          "mode": "list",
+          "cachedResultName": "Campaign_Queue"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "campaign_id",
+              "displayName": "campaign_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "generated_at",
+              "displayName": "generated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_id",
+              "displayName": "customer_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "first_name",
+              "displayName": "first_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "segment",
+              "displayName": "segment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "campaign_type",
+              "displayName": "campaign_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "decision_reason",
+              "displayName": "decision_reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "recommended_offer",
+              "displayName": "recommended_offer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message_body",
+              "displayName": "message_body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "cta",
+              "displayName": "cta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "copy_rationale",
+              "displayName": "copy_rationale",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "preferred_category",
+              "displayName": "preferred_category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "days_since_last_order",
+              "displayName": "days_since_last_order",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "order_count",
+              "displayName": "order_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_spend_inr",
+              "displayName": "total_spend_inr",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "channel",
+              "displayName": "channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "send_approved",
+              "displayName": "send_approved",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "draft_source",
+              "displayName": "draft_source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "bdce0061-bf33-4a4b-ae0e-33862ef45709",
+      "name": "Append Drafts to Campaign_Queue",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        1570,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Run": {
+      "main": [
+        [
+          {
+            "node": "Read Customers from Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Customers from Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Segment & Group Customers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Segment & Group Customers": {
+      "main": [
+        [
+          {
+            "node": "Generate AI Campaign Copy (one call per campaign type)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate AI Campaign Copy (one call per campaign type)": {
+      "main": [
+        [
+          {
+            "node": "Expand Copy into Customer Drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand Copy into Customer Drafts": {
+      "main": [
+        [
+          {
+            "node": "Append Drafts to Campaign_Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true
+  },
+  "versionId": "34608f1a-2948-41bf-b9cd-0641b2e47b5b",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": ""
+  },
+  "tags": []
+}
