@@ -1,0 +1,11 @@
+﻿segment,campaign_type,queued_customers
+Active Customer Nurture,Relevant Category Nurture,136
+Active Repeat Customer,Cross-Sell & Habit,125
+Dormant Repeat Customer,Win-Back,89
+Dormant Signup,First Order Activation,55
+First-Order Customer,Post-Purchase Reorder,50
+High-Value At-Risk,VIP Re-engagement,35
+High-Value Win-Back,Win-Back,6
+New Signup,First Order Activation,6
+One-Time Buyer,First-to-Second Order,88
+Replenishment Due,Replenishment Reminder,78
